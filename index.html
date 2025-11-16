@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>座位规则编辑器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#10B981',
+                        danger: '#EF4444',
+                        dark: '#1F2937',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .btn-effect {
+                @apply transition-all duration-200 active:scale-95;
+            }
+            .card {
+                @apply bg-white rounded-xl shadow-lg p-6 mb-6;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen py-8 px-4 md:px-8">
+    <!-- 密码验证界面 -->
+    <div id="passwordScreen" class="max-w-md mx-auto bg-white rounded-xl shadow-2xl p-8">
+        <h1 class="text-2xl font-bold text-center text-dark mb-6">规则编辑器</h1>
+        <p class="text-gray-600 mb-6 text-center">请输入密码以访问</p>
+        
+        <div class="mb-6">
+            <label for="password" class="block text-gray-700 mb-2">密码</label>
+            <input type="password" id="password" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" placeholder="请输入密码">
+        </div>
+        
+        <button id="loginBtn" class="w-full bg-primary hover:bg-primary/90 text-white py-3 rounded-lg btn-effect font-medium">
+            登录
+        </button>
+        
+        <p id="errorMessage" class="text-danger text-center mt-4 hidden">密码错误，请重试</p>
+    </div>
+
+    <!-- 主内容区域（初始隐藏） -->
+    <div id="mainContent" class="max-w-4xl mx-auto hidden">
+        <header class="text-center mb-8">
+            <h1 class="text-[clamp(1.8rem,4vw,2.5rem)] font-bold text-dark mb-2">座位规则编辑器</h1>
+            <p class="text-gray-600">创建和管理座位安排规则，导出后可导入到座位安排程序中</p>
+        </header>
+
+        <main>
+            <!-- 学生姓名管理 -->
+            <div class="card">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <i class="fa fa-users text-primary mr-2"></i> 学生姓名管理
+                </h2>
+                <p class="text-gray-600 mb-4">请输入所有学生姓名（每行一个），用于规则设置时选择</p>
+                <textarea id="nameList" class="w-full h-40 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none mb-4" placeholder="输入学生姓名，每行一个..."></textarea>
+                <button id="loadNamesBtn" class="bg-secondary hover:bg-secondary/90 text-white px-4 py-2 rounded-lg btn-effect flex items-center gap-2 text-base">
+                    <i class="fa fa-save"></i> 保存学生名单
+                </button>
+            </div>
+
+            <!-- 行限制设置 -->
+            <div class="card">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <i class="fa fa-th-list text-primary mr-2"></i> 行限制设置
+                </h2>
+                <p class="text-gray-600 mb-4">指定学生只能坐在特定的行</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-gray-700 mb-2">选择学生</label>
+                        <select id="studentForRowRestriction" class="w-full p-2 border border-gray-300 rounded-lg">
+                            <option value="">-- 选择学生 --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 mb-2">允许的行（可多选，按住Ctrl键）</label>
+                        <select id="allowedRows" class="w-full p-2 border border-gray-300 rounded-lg" multiple size="3">
+                            <option value="0">第1行</option>
+                            <option value="1">第2行</option>
+                            <option value="2">第3行</option>
+                            <option value="3">第4行</option>
+                            <option value="4">第5行</option>
+                            <option value="5">第6行</option>
+                            <option value="6">第7行</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <button id="addRowRestriction" class="bg-secondary hover:bg-secondary/90 text-white px-4 py-2 rounded-lg btn-effect flex items-center gap-2 text-base mb-4">
+                    <i class="fa fa-plus"></i> 添加行限制
+                </button>
+                
+                <div id="rowRestrictionsList" class="p-3 bg-gray-50 rounded-lg max-h-40 overflow-y-auto">
+                    <p class="text-gray-500 italic">暂无行限制</p>
+                </div>
+            </div>
+
+            <!-- 相邻限制设置 -->
+            <div class="card">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <i class="fa fa-ban text-primary mr-2"></i> 相邻限制设置
+                </h2>
+                <p class="text-gray-600 mb-4">指定哪些学生不能坐在彼此相邻的位置（左右）</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-gray-700 mb-2">学生A</label>
+                        <select id="studentA" class="w-full p-2 border border-gray-300 rounded-lg">
+                            <option value="">-- 选择学生 --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 mb-2">学生B（不能与A相邻）</label>
+                        <select id="studentB" class="w-full p-2 border border-gray-300 rounded-lg">
+                            <option value="">-- 选择学生 --</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <button id="addAdjacencyRestriction" class="bg-secondary hover:bg-secondary/90 text-white px-4 py-2 rounded-lg btn-effect flex items-center gap-2 text-base mb-4">
+                    <i class="fa fa-plus"></i> 添加相邻限制
+                </button>
+                
+                <div id="adjacencyRestrictionsList" class="p-3 bg-gray-50 rounded-lg max-h-40 overflow-y-auto">
+                    <p class="text-gray-500 italic">暂无相邻限制</p>
+                </div>
+            </div>
+
+            <!-- 前后桌限制设置 -->
+            <div class="card">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <i class="fa fa-arrow-up text-primary mr-2"></i> 前后桌限制设置
+                </h2>
+                <p class="text-gray-600 mb-4">指定哪些学生不能坐在彼此前后的位置（前后）</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-gray-700 mb-2">学生A</label>
+                        <select id="studentC" class="w-full p-2 border border-gray-300 rounded-lg">
+                            <option value="">-- 选择学生 --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 mb-2">学生D（不能与A前后桌）</label>
+                        <select id="studentD" class="w-full p-2 border border-gray-300 rounded-lg">
+                            <option value="">-- 选择学生 --</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <button id="addFrontBackRestriction" class="bg-secondary hover:bg-secondary/90 text-white px-4 py-2 rounded-lg btn-effect flex items-center gap-2 text-base mb-4">
+                    <i class="fa fa-plus"></i> 添加前后桌限制
+                </button>
+                
+                <div id="frontBackRestrictionsList" class="p-3 bg-gray-50 rounded-lg max-h-40 overflow-y-auto">
+                    <p class="text-gray-500 italic">暂无前后桌限制</p>
+                </div>
+            </div>
+
+            <!-- 规则导出 -->
+            <div class="card">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <i class="fa fa-file-text-o text-primary mr-2"></i> 规则导出
+                </h2>
+                <p class="text-gray-600 mb-4">导出规则文件，可导入到座位安排程序中使用</p>
+                
+                <div class="flex flex-wrap gap-3">
+                    <button id="exportRulesBtn" class="bg-primary hover:bg-primary/90 text-white px-6 py-2.5 rounded-lg btn-effect flex items-center gap-2 text-base">
+                        <i class="fa fa-download"></i> 导出规则文件
+                    </button>
+                    <button id="clearAllRulesBtn" class="bg-danger hover:bg-danger/90 text-white px-6 py-2.5 rounded-lg btn-effect flex items-center gap-2 text-base">
+                        <i class="fa fa-trash"></i> 清除所有规则
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <footer class="mt-10 text-center text-gray-500 text-sm">
+            <p>座位规则编辑器 &copy; 2023 - 生成的规则文件可导入到座位安排程序中</p>
+        </footer>
+    </div>
+
+    <script>
+        // 密码验证
+        const CORRECT_PASSWORD = "241305117";
+        const passwordScreen = document.getElementById('passwordScreen');
+        const mainContent = document.getElementById('mainContent');
+        const passwordInput = document.getElementById('password');
+        const loginBtn = document.getElementById('loginBtn');
+        const errorMessage = document.getElementById('errorMessage');
+
+        // 存储学生名单和规则
+        let nameList = [];
+        let rowRestrictions = {}; // {学生姓名: [允许的行索引数组]}
+        let adjacencyRestrictions = []; // [{a: 学生A, b: 学生B}, ...] 左右相邻限制
+        let frontBackRestrictions = []; // [{a: 学生A, b: 学生B}, ...] 前后桌限制
+
+        // DOM 元素
+        const nameListElement = document.getElementById('nameList');
+        const loadNamesBtn = document.getElementById('loadNamesBtn');
+        const studentForRowRestriction = document.getElementById('studentForRowRestriction');
+        const allowedRows = document.getElementById('allowedRows');
+        const addRowRestriction = document.getElementById('addRowRestriction');
+        const rowRestrictionsList = document.getElementById('rowRestrictionsList');
+        const studentA = document.getElementById('studentA');
+        const studentB = document.getElementById('studentB');
+        const addAdjacencyRestriction = document.getElementById('addAdjacencyRestriction');
+        const adjacencyRestrictionsList = document.getElementById('adjacencyRestrictionsList');
+        const studentC = document.getElementById('studentC');
+        const studentD = document.getElementById('studentD');
+        const addFrontBackRestriction = document.getElementById('addFrontBackRestriction');
+        const frontBackRestrictionsList = document.getElementById('frontBackRestrictionsList');
+        const exportRulesBtn = document.getElementById('exportRulesBtn');
+        const clearAllRulesBtn = document.getElementById('clearAllRulesBtn');
+
+        // 初始化密码验证
+        function initPasswordVerification() {
+            loginBtn.addEventListener('click', verifyPassword);
+            passwordInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    verifyPassword();
+                }
+            });
+        }
+
+        // 验证密码
+        function verifyPassword() {
+            const password = passwordInput.value.trim();
+            
+            if (password === CORRECT_PASSWORD) {
+                // 密码正确，显示主内容并加载数据
+                passwordScreen.classList.add('hidden');
+                mainContent.classList.remove('hidden');
+                initMainContent();
+            } else {
+                // 密码错误，显示错误信息
+                errorMessage.classList.remove('hidden');
+                passwordInput.value = '';
+                
+                // 3秒后隐藏错误信息
+                setTimeout(() => {
+                    errorMessage.classList.add('hidden');
+                }, 3000);
+            }
+        }
+
+        // 初始化主内容
+        function initMainContent() {
+            // 尝试从本地存储加载数据
+            loadFromLocalStorage();
+            
+            // 事件监听
+            loadNamesBtn.addEventListener('click', loadNameList);
+            addRowRestriction.addEventListener('click', addRowRestrictionHandler);
+            addAdjacencyRestriction.addEventListener('click', addAdjacencyRestrictionHandler);
+            addFrontBackRestriction.addEventListener('click', addFrontBackRestrictionHandler);
+            exportRulesBtn.addEventListener('click', exportRules);
+            clearAllRulesBtn.addEventListener('click', clearAllRules);
+        }
+
+        // 从本地存储加载数据
+        function loadFromLocalStorage() {
+            const savedNames = localStorage.getItem('editorNames');
+            const savedRowRestrictions = localStorage.getItem('editorRowRestrictions');
+            const savedAdjacencyRestrictions = localStorage.getItem('editorAdjacencyRestrictions');
+            const savedFrontBackRestrictions = localStorage.getItem('editorFrontBackRestrictions');
+            
+            if (savedNames) {
+                try {
+                    nameList = JSON.parse(savedNames);
+                    nameListElement.value = nameList.join('\n');
+                    updateStudentSelectors();
+                } catch (e) {
+                    console.error('Failed to load names', e);
+                }
+            }
+            
+            if (savedRowRestrictions) {
+                try {
+                    rowRestrictions = JSON.parse(savedRowRestrictions);
+                    updateRowRestrictionsList();
+                } catch (e) {
+                    console.error('Failed to load row restrictions', e);
+                }
+            }
+            
+            if (savedAdjacencyRestrictions) {
+                try {
+                    adjacencyRestrictions = JSON.parse(savedAdjacencyRestrictions);
+                    updateAdjacencyRestrictionsList();
+                } catch (e) {
+                    console.error('Failed to load adjacency restrictions', e);
+                }
+            }
+            
+            if (savedFrontBackRestrictions) {
+                try {
+                    frontBackRestrictions = JSON.parse(savedFrontBackRestrictions);
+                    updateFrontBackRestrictionsList();
+                } catch (e) {
+                    console.error('Failed to load front-back restrictions', e);
+                }
+            }
+        }
+
+        // 保存数据到本地存储
+        function saveToLocalStorage() {
+            localStorage.setItem('editorNames', JSON.stringify(nameList));
+            localStorage.setItem('editorRowRestrictions', JSON.stringify(rowRestrictions));
+            localStorage.setItem('editorAdjacencyRestrictions', JSON.stringify(adjacencyRestrictions));
+            localStorage.setItem('editorFrontBackRestrictions', JSON.stringify(frontBackRestrictions));
+        }
+
+        // 加载学生名单
+        function loadNameList() {
+            // 从文本框获取姓名列表，过滤空行
+            const newNames = nameListElement.value.split('\n')
+                .map(name => name.trim())
+                .filter(name => name !== '');
+            
+            if (newNames.length === 0) {
+                alert('请至少输入一个学生姓名');
+                return;
+            }
+            
+            nameList = newNames;
+            updateStudentSelectors();
+            saveToLocalStorage();
+            alert('学生名单已保存');
+        }
+
+        // 更新学生选择器
+        function updateStudentSelectors() {
+            // 保存当前选中的值
+            const currentRowStudent = studentForRowRestriction.value;
+            const currentA = studentA.value;
+            const currentB = studentB.value;
+            const currentC = studentC.value;
+            const currentD = studentD.value;
+            
+            // 清空选择器
+            studentForRowRestriction.innerHTML = '<option value="">-- 选择学生 --</option>';
+            studentA.innerHTML = '<option value="">-- 选择学生 --</option>';
+            studentB.innerHTML = '<option value="">-- 选择学生 --</option>';
+            studentC.innerHTML = '<option value="">-- 选择学生 --</option>';
+            studentD.innerHTML = '<option value="">-- 选择学生 --</option>';
+            
+            // 添加学生选项
+            nameList.forEach(student => {
+                const option1 = document.createElement('option');
+                option1.value = student;
+                option1.textContent = student;
+                studentForRowRestriction.appendChild(option1);
+                
+                const option2 = document.createElement('option');
+                option2.value = student;
+                option2.textContent = student;
+                studentA.appendChild(option2);
+                
+                const option3 = document.createElement('option');
+                option3.value = student;
+                option3.textContent = student;
+                studentB.appendChild(option3);
+                
+                const option4 = document.createElement('option');
+                option4.value = student;
+                option4.textContent = student;
+                studentC.appendChild(option4);
+                
+                const option5 = document.createElement('option');
+                option5.value = student;
+                option5.textContent = student;
+                studentD.appendChild(option5);
+            });
+            
+            // 恢复选中值（如果仍然存在）
+            if (nameList.includes(currentRowStudent)) {
+                studentForRowRestriction.value = currentRowStudent;
+            }
+            if (nameList.includes(currentA)) {
+                studentA.value = currentA;
+            }
+            if (nameList.includes(currentB)) {
+                studentB.value = currentB;
+            }
+            if (nameList.includes(currentC)) {
+                studentC.value = currentC;
+            }
+            if (nameList.includes(currentD)) {
+                studentD.value = currentD;
+            }
+        }
+
+        // 添加行限制
+        function addRowRestrictionHandler() {
+            if (nameList.length === 0) {
+                alert('请先添加并保存学生名单');
+                return;
+            }
+            
+            const student = studentForRowRestriction.value;
+            const rows = Array.from(allowedRows.selectedOptions).map(option => parseInt(option.value));
+            
+            if (!student || rows.length === 0) {
+                alert('请选择学生和允许的行');
+                return;
+            }
+            
+            rowRestrictions[student] = rows;
+            updateRowRestrictionsList();
+            saveToLocalStorage();
+            alert('行限制已添加');
+            
+            // 重置选择
+            studentForRowRestriction.value = '';
+            allowedRows.selectedIndex = -1;
+        }
+
+        // 更新行限制列表显示
+        function updateRowRestrictionsList() {
+            rowRestrictionsList.innerHTML = '';
+            
+            if (Object.keys(rowRestrictions).length === 0) {
+                rowRestrictionsList.innerHTML = '<p class="text-gray-500 italic">暂无行限制</p>';
+                return;
+            }
+            
+            for (const [student, rows] of Object.entries(rowRestrictions)) {
+                const rowElement = document.createElement('div');
+                rowElement.className = 'flex justify-between items-center p-2 border-b border-gray-200 last:border-0';
+                
+                const textSpan = document.createElement('span');
+                textSpan.textContent = `${student} 只能在第 ${rows.map(r => r + 1).join(', ')} 行`;
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'text-danger hover:text-danger/80';
+                deleteBtn.innerHTML = '<i class="fa fa-times"></i>';
+                deleteBtn.addEventListener('click', () => {
+                    delete rowRestrictions[student];
+                    updateRowRestrictionsList();
+                    saveToLocalStorage();
+                });
+                
+                rowElement.appendChild(textSpan);
+                rowElement.appendChild(deleteBtn);
+                rowRestrictionsList.appendChild(rowElement);
+            }
+        }
+
+        // 添加相邻限制
+        function addAdjacencyRestrictionHandler() {
+            if (nameList.length === 0) {
+                alert('请先添加并保存学生名单');
+                return;
+            }
+            
+            const a = studentA.value;
+            const b = studentB.value;
+            
+            if (!a || !b || a === b) {
+                alert('请选择两个不同的学生');
+                return;
+            }
+            
+            // 检查是否已存在该限制
+            const exists = adjacencyRestrictions.some(rest => 
+                (rest.a === a && rest.b === b) || (rest.a === b && rest.b === a)
+            );
+            
+            if (!exists) {
+                adjacencyRestrictions.push({a, b});
+                updateAdjacencyRestrictionsList();
+                saveToLocalStorage();
+                alert('相邻限制已添加');
+            } else {
+                alert('该限制已存在');
+            }
+            
+            // 重置选择
+            studentA.value = '';
+            studentB.value = '';
+        }
+
+        // 更新相邻限制列表显示
+        function updateAdjacencyRestrictionsList() {
+            adjacencyRestrictionsList.innerHTML = '';
+            
+            if (adjacencyRestrictions.length === 0) {
+                adjacencyRestrictionsList.innerHTML = '<p class="text-gray-500 italic">暂无相邻限制</p>';
+                return;
+            }
+            
+            adjacencyRestrictions.forEach((restriction, index) => {
+                const rowElement = document.createElement('div');
+                rowElement.className = 'flex justify-between items-center p-2 border-b border-gray-200 last:border-0';
+                
+                const textSpan = document.createElement('span');
+                textSpan.textContent = `${restriction.a} 不能与 ${restriction.b} 左右相邻`;
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'text-danger hover:text-danger/80';
+                deleteBtn.innerHTML = '<i class="fa fa-times"></i>';
+                deleteBtn.addEventListener('click', () => {
+                    adjacencyRestrictions.splice(index, 1);
+                    updateAdjacencyRestrictionsList();
+                    saveToLocalStorage();
+                });
+                
+                rowElement.appendChild(textSpan);
+                rowElement.appendChild(deleteBtn);
+                adjacencyRestrictionsList.appendChild(rowElement);
+            });
+        }
+
+        // 添加前后桌限制
+        function addFrontBackRestrictionHandler() {
+            if (nameList.length === 0) {
+                alert('请先添加并保存学生名单');
+                return;
+            }
+            
+            const a = studentC.value;
+            const b = studentD.value;
+            
+            if (!a || !b || a === b) {
+                alert('请选择两个不同的学生');
+                return;
+            }
+            
+            // 检查是否已存在该限制
+            const exists = frontBackRestrictions.some(rest => 
+                (rest.a === a && rest.b === b) || (rest.a === b && rest.b === a)
+            );
+            
+            if (!exists) {
+                frontBackRestrictions.push({a, b});
+                updateFrontBackRestrictionsList();
+                saveToLocalStorage();
+                alert('前后桌限制已添加');
+            } else {
+                alert('该限制已存在');
+            }
+            
+            // 重置选择
+            studentC.value = '';
+            studentD.value = '';
+        }
+
+        // 更新前后桌限制列表显示
+        function updateFrontBackRestrictionsList() {
+            frontBackRestrictionsList.innerHTML = '';
+            
+            if (frontBackRestrictions.length === 0) {
+                frontBackRestrictionsList.innerHTML = '<p class="text-gray-500 italic">暂无前后桌限制</p>';
+                return;
+            }
+            
+            frontBackRestrictions.forEach((restriction, index) => {
+                const rowElement = document.createElement('div');
+                rowElement.className = 'flex justify-between items-center p-2 border-b border-gray-200 last:border-0';
+                
+                const textSpan = document.createElement('span');
+                textSpan.textContent = `${restriction.a} 不能与 ${restriction.b} 前后相邻`;
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'text-danger hover:text-danger/80';
+                deleteBtn.innerHTML = '<i class="fa fa-times"></i>';
+                deleteBtn.addEventListener('click', () => {
+                    frontBackRestrictions.splice(index, 1);
+                    updateFrontBackRestrictionsList();
+                    saveToLocalStorage();
+                });
+                
+                rowElement.appendChild(textSpan);
+                rowElement.appendChild(deleteBtn);
+                frontBackRestrictionsList.appendChild(rowElement);
+            });
+        }
+
+        // 导出规则
+        function exportRules() {
+            if (Object.keys(rowRestrictions).length === 0 && 
+                adjacencyRestrictions.length === 0 && 
+                frontBackRestrictions.length === 0) {
+                alert('没有可导出的规则，请先添加规则');
+                return;
+            }
+            
+            const rules = {
+                rowRestrictions: rowRestrictions,
+                adjacencyRestrictions: adjacencyRestrictions,
+                frontBackRestrictions: frontBackRestrictions,
+                exportDate: new Date().toISOString()
+            };
+            
+            const jsonStr = JSON.stringify(rules, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'seating_rules.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // 清除所有规则
+        function clearAllRules() {
+            if (confirm('确定要清除所有规则吗？此操作不可恢复。')) {
+                rowRestrictions = {};
+                adjacencyRestrictions = [];
+                frontBackRestrictions = [];
+                updateRowRestrictionsList();
+                updateAdjacencyRestrictionsList();
+                updateFrontBackRestrictionsList();
+                saveToLocalStorage();
+                alert('所有规则已清除');
+            }
+        }
+
+        // 初始化密码验证界面
+        window.addEventListener('DOMContentLoaded', initPasswordVerification);
+    </script>
+</body>
+</html>
+    
